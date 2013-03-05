@@ -1,0 +1,102 @@
+--- Makefile.orig       2013-03-05 22:26:42.706374259 +1100
++++ Makefile    2013-03-05 22:33:31.264631577 +1100
+@@ -44,7 +44,7 @@
+ #REAL_DAEMON_DIR=/usr/etc
+ #
+ # SysV.4 Solaris 2.x OSF AIX
+-#REAL_DAEMON_DIR=/usr/sbin
++REAL_DAEMON_DIR=/usr/sbin
+ #
+ # BSD 4.4
+ #REAL_DAEMON_DIR=/usr/libexec
+@@ -197,6 +197,24 @@
+        BUGS="$(BUGS) -DSOLARIS_24_GETHOSTBYNAME_BUG" IPV6="$(IPV6)" \
+        EXTRA_CFLAGS=-DUSE_STRERROR all
+
++sunos5-shared:
++       @$(MAKE) REAL_DAEMON_DIR=$(REAL_DAEMON_DIR) STYLE=$(STYLE) \
++       LIBS="-lsocket -lnsl" RANLIB=/bin/true \
++       AR=ld ARFLAGS="-G -h libwrap.so.1 -lsocket -lnsl -o " \
++       LIB=libwrap.so.1 VSYSLOG= \
++       NETGROUP=-DNETGROUP AUX_OBJ="setenv.o sharedhack.o" TLI=-DTLI \
++       BUGS="$(BUGS) -DSOLARIS_24_GETHOSTBYNAME_BUG" IPV6="$(IPV6)" \
++       EXTRA_CFLAGS="-DUSE_STRERROR -Kpic" all
++
++sunos5-sharedext:
++       @$(MAKE) REAL_DAEMON_DIR=$(REAL_DAEMON_DIR) STYLE=$(STYLE) \
++       LIBS="-lsocket -lnsl" RANLIB=/bin/true \
++       AR=ld ARFLAGS="-G -h libwrap.so.1 -lsocket -lnsl -o " \
++       LIB=libwrap.so.1 VSYSLOG= STYLE=-DPROCESS_OPTIONS \
++       NETGROUP=-DNETGROUP AUX_OBJ="setenv.o sharedhack.o" TLI=-DTLI \
++       BUGS="$(BUGS) -DSOLARIS_24_GETHOSTBYNAME_BUG" IPV6="$(IPV6)" \
++       EXTRA_CFLAGS="-DUSE_STRERROR -Kpic" all
++
+ # Generic SYSV40
+ esix sysv4:
+        @make REAL_DAEMON_DIR=$(REAL_DAEMON_DIR) STYLE=$(STYLE) \
+@@ -481,7 +499,7 @@
+ # If your system has IPv6 and supports getipnode* and inet_pton/inet_ntop
+ # uncomment the following (Solaris 8)
+
+-# IPV6 = -DHAVE_IPV6
++IPV6 = -DHAVE_IPV6
+
+ # If your system does not have getipnodebyname() but uses the obsolete
+ # gethostbyname2() instead, use this (AIX)
+@@ -527,7 +545,7 @@
+ #
+ # The LOG_XXX names below are taken from the /usr/include/syslog.h file.
+
+-FACILITY= LOG_MAIL     # LOG_MAIL is what most sendmail daemons use
++FACILITY= LOG_LOCAL1
+
+ # The syslog priority at which successful connections are logged.
+
+@@ -677,7 +695,7 @@
+        -DREAL_DAEMON_DIR=\"$(REAL_DAEMON_DIR)\" $(STYLE) $(KILL_OPT) \
+        -DSEVERITY=$(SEVERITY) -DRFC931_TIMEOUT=$(RFC931_TIMEOUT) \
+        $(UCHAR) $(TABLES) $(STRINGS) $(TLI) $(EXTRA_CFLAGS) $(DOT) \
+-       $(VSYSLOG) $(HOSTNAME) $(IPV6)
++       $(VSYSLOG) $(HOSTNAME) $(IPV6) $(USER_CFLAGS)
+
+ LIB_OBJ= hosts_access.o options.o shell_cmd.o rfc931.o eval.o \
+        hosts_ctl.o refuse.o percent_x.o clean_exit.o $(AUX_OBJ) \
+@@ -725,7 +743,7 @@
+        $(CC) $(CFLAGS) -o $@ miscd.o $(LIB) $(LIBS)
+
+ safe_finger: safe_finger.o $(LIB)
+-       $(CC) $(CFLAGS) -o $@ safe_finger.o $(LIB) $(LIBS)
++       $(CC) $(CFLAGS) -o $@ safe_finger.o $(LIBS)
+
+ TCPDMATCH_OBJ = tcpdmatch.o fakelog.o inetcf.o scaffold.o
+
+@@ -824,6 +842,19 @@
+        -DPARANOID $(TABLES) -DNETGROUP -DPROCESS_OPTIONS -DRFC931_TIMEOUT=10 \
+        -Dvsyslog=myvsyslog -DREAL_DAEMON_DIR=\"$(REAL_DAEMON_DIR)\"
+
++install:
++       mkdir -p ${DESTDIR}/man/man8
++       mkdir ${DESTDIR}/bin
++       mkdir ${DESTDIR}/sbin
++       mkdir ${DESTDIR}/lib
++       mkdir ${DESTDIR}/include
++       cp tcpd.h ${DESTDIR}/include
++       cp *.8 ${DESTDIR}/man/man8
++       cp tcpd ${DESTDIR}/sbin
++       cp libwrap.so.1 ${DESTDIR}/lib
++       ln -s ${DESTDIR}/lib/libwrap.so.1 ${DESTDIR}/lib/libwrap.so
++       cp tcpdmatch try-from safe_finger tcpdchk ${DESTDIR}/bin
++
+ # Internal compilation dependencies.
+
+ clean_exit.o: cflags
+--- sharedhack.c.orig   2013-03-05 22:31:56.691842393 +1100
++++ sharedhack.c        2013-03-05 22:31:29.871386667 +1100
+@@ -0,0 +1,7 @@
++/* This must be compiled with Sun CC for the pragma */
++#pragma weak deny_severity
++#pragma weak allow_severity
++#pragma weak hard_severity
++int deny_severity=0;
++int allow_severity=0;
++int hard_severity=0;
